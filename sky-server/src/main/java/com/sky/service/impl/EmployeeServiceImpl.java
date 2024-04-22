@@ -1,16 +1,20 @@
 package com.sky.service.impl;
 
+import com.github.pagehelper.Page;
+import com.github.pagehelper.PageHelper;
 import com.sky.constant.MessageConstant;
 import com.sky.constant.PasswordConstant;
 import com.sky.constant.StatusConstant;
 import com.sky.context.BaseContext;
 import com.sky.dto.EmployeeDTO;
 import com.sky.dto.EmployeeLoginDTO;
+import com.sky.dto.EmployeePageQueryDTO;
 import com.sky.entity.Employee;
 import com.sky.exception.AccountLockedException;
 import com.sky.exception.AccountNotFoundException;
 import com.sky.exception.PasswordErrorException;
 import com.sky.mapper.EmployeeMapper;
+import com.sky.result.PageResult;
 import com.sky.result.Result;
 import com.sky.service.EmployeeService;
 import org.springframework.beans.BeanUtils;
@@ -47,7 +51,7 @@ public class EmployeeServiceImpl implements EmployeeService {
 
         //密码比对
         // TODO 后期需要进行md5加密，然后再进行比对
-         password = DigestUtils.md5DigestAsHex(password.getBytes());
+        password = DigestUtils.md5DigestAsHex(password.getBytes());
         if (!password.equals(employee.getPassword())) {
             //密码错误
             throw new PasswordErrorException(MessageConstant.PASSWORD_ERROR);
@@ -71,7 +75,7 @@ public class EmployeeServiceImpl implements EmployeeService {
     public Result save(EmployeeDTO employeeDTO) {
         //对象属性拷贝
         Employee employee = new Employee();
-        BeanUtils.copyProperties(employeeDTO,employee);
+        BeanUtils.copyProperties(employeeDTO, employee);
         //设置账号的状态 默认为正常
         employee.setStatus(StatusConstant.ENABLE);
         //设置密码 默认123456
@@ -84,13 +88,67 @@ public class EmployeeServiceImpl implements EmployeeService {
         employee.setUpdateUser(BaseContext.getCurrentId());
         //判断用户名是否重复
         Employee getByUsername = employeeMapper.getByUsername(employee.getUsername());
-        if(getByUsername != null){
+        if (getByUsername != null) {
             //用户名已存在
-            return Result.error(employee.getUsername()+MessageConstant.ALREADY_EXISTS);
+            return Result.error(employee.getUsername() + MessageConstant.ALREADY_EXISTS);
         }
         //持久层写入数据
         employeeMapper.insert(employee);
         return Result.success();
+    }
+
+    /**
+     * 员工分页查询方法
+     *
+     * @param employeePageQueryDTO
+     * @return
+     */
+    public PageResult pageQuery(EmployeePageQueryDTO employeePageQueryDTO) {
+        PageHelper.startPage(employeePageQueryDTO.getPage(), employeePageQueryDTO.getPageSize());
+
+        Page<Employee> page = employeeMapper.pageQuery(employeePageQueryDTO);
+
+        return new PageResult(page.getTotal(), page.getResult());
+    }
+
+    /**
+     * 启用或禁用员工账号
+     * @param status
+     * @param id
+     */
+    @Override
+    public void startOrStop(Integer status, Long id) {
+
+        Employee employee = Employee.builder()
+                .status(status)
+                .id(id)
+                .build();
+        employeeMapper.update(employee);
+
+    }
+
+    @Override
+    public Employee getById(Long id) {
+        Employee employee = employeeMapper.getById(id);
+        employee.setPassword("****");
+        return employee;
+    }
+
+    /**
+     * 修改员工信息
+     * @param employeeDTO
+     */
+    @Override
+    public void update(EmployeeDTO employeeDTO) {
+        //将EmployeeDTO 属性拷贝为 Employee
+        Employee employee = new Employee();
+        BeanUtils.copyProperties(employeeDTO,employee);
+        //修改更新时间
+        employee.setUpdateTime(LocalDateTime.now());
+        //修改更新用户
+        employee.setUpdateUser(BaseContext.getCurrentId());
+        //调用mapper方法更新数据库
+        employeeMapper.update(employee);
     }
 
 }
